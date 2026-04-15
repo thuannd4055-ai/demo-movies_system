@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Cinema Web</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="screen-container">
+        <div class="screen">MÀN HÌNH</div>
+    </div>
+
+    <div class="info-panel">
+        <div class="legend">
+            <div class="legend-item"><div class="box" style="background: #dee2ec;"></div> Trống</div>
+            <div class="legend-item"><div class="box" style="background: #6dc1cc;"></div> Đang chọn</div>
+            <div class="legend-item"><div class="box" style="background: #1d212a;"></div> Đã đặt</div>
+            <div class="legend-item"><div class="box" style="background: #bc1919; box-shadow: 0 0 10px #f36f6f;"></div> Deadlock</div>
+        </div>
+        <div class="status-msg" id="msg">
+            <b>Kết quả:</b> Chờ lệnh từ bạn...
+        </div>
+    </div>
+
+    <div id="seat-map" class="seat-map"></div>
+
+    <div class="controls">
+        <button class="btn" onclick="runTransaction('t1')">MIA (BOOK A1 & A2)</button>
+        <button class="btn btn-jack" onclick="runTransaction('t2')">JACK (BOOK A2 & A1)</button>
+    </div>
+
+    <script>
+        const msgBox = document.getElementById('msg');
+        const container = document.getElementById('seat-map');
+
+        async function loadSeats() {
+            try {
+                const response = await fetch('/api/seats');
+                const seats = await response.json();
+                renderSeats(seats);
+            } catch (e) {
+                console.log("Đang kết nối database...");
+                const dummySeats = Array.from({length: 80}, (_, i) => ({id: i+1, status: 'available'}));
+                renderSeats(dummySeats);
+            }
+        }
+
+        function renderSeats(seats) {
+            container.innerHTML = ''; 
+            
+            container.innerHTML += '<div></div>'; 
+            for(let i=1; i<=10; i++) container.innerHTML += `<div class="label">${i}</div>`;
+
+            const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            rows.forEach((row, rowIndex) => {
+                container.innerHTML += `<div class="label">${row}</div>`;
+                for(let j=1; j<=10; j++) {
+                    const seatId = rowIndex * 10 + j;
+                    const seatData = seats.find(s => s.id === seatId) || {status: 'available'};
+                    
+                    const seatDiv = document.createElement('div');
+                    seatDiv.className = `seat ${seatData.status}`;
+                    if (seatData.status === 'available') {
+                seatDiv.onclick = () => {
+                    seatDiv.classList.toggle('selected');
+                    console.log(`Đang chọn ghế: ${row}${j}`);
+                };
+            }
+                    if(seatId === 1 || seatId === 2) {
+                        seatDiv.innerText = `A${seatId}`;
+                        seatDiv.style.fontSize = '9px';
+                        seatDiv.style.lineHeight = '30px';
+                        seatDiv.style.textAlign = 'center';
+                    }
+                    container.appendChild(seatDiv);
+                }
+            });
+        }
+
+        async function runTransaction(type) {
+            const user = type === 't1' ? 'Mia' : 'Jack';
+            msgBox.innerHTML = `<b>Đang xử lý:</b> ${user} đang đặt vé...`;
+            try {
+                const response = await fetch(`/api/${type}`);
+                const result = await response.text();
+                msgBox.innerHTML = `<b>Kết quả:</b> ${result}`;
+                loadSeats(); 
+            } catch (err) {
+                msgBox.innerHTML = `<b>Lỗi:</b> Backend chưa phản hồi.`;
+            }
+        }
+
+        loadSeats();
+        setInterval(loadSeats, 2000); 
+    </script>
+</body>
+</html>

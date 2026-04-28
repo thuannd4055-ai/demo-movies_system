@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎬 Cinema Deadlock Demo — DBMS</title>
+<style>
+  :root {
+    --bg: #0a0d14;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --surface3: #1e2d45;
+    --border: #2a3a5c;
+    --accent: #3b82f6;
+    --accent2: #6366f1;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --orange: #f97316;
+    --purple: #a855f7;
+    --cyan: #06b6d4;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --t1: #3b82f6;
+    --t2: #f97316;
+    --deadlock: #ef4444;
+    --commit: #10b981;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ─────────────────────────── */
+  header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 18px; font-weight: 700;
+  }
+  .logo-icon { font-size: 28px; }
+  .logo-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
+
+  .header-status {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .ws-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 4px 10px;
+    border-radius: 20px; background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .ws-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text3);
+    transition: background 0.3s;
+  }
+  .ws-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  .btn-reset {
+    background: var(--red); color: white;
+    border: none; padding: 6px 16px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-reset:hover { background: #dc2626; transform: scale(1.03); }
+
+  /* ── Layout ─────────────────────────── */
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    height: calc(100vh - 60px);
+  }
+
+  /* ── Panel base ─────────────────────── */
+  .panel {
+    border: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+  }
+  .panel-title {
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .panel-badge {
+    font-size: 10px; padding: 2px 8px;
+    border-radius: 10px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .badge-t1 { background: rgba(59,130,246,0.2); color: var(--t1); border: 1px solid rgba(59,130,246,0.4); }
+  .badge-t2 { background: rgba(249,115,22,0.2); color: var(--t2); border: 1px solid rgba(249,115,22,0.4); }
+  .badge-green { background: rgba(16,185,129,0.2); color: var(--green); border: 1px solid rgba(16,185,129,0.4); }
+  .badge-purple { background: rgba(168,85,247,0.2); color: var(--purple); border: 1px solid rgba(168,85,247,0.4); }
+
+  .panel-body {
+    flex: 1; overflow-y: auto; padding: 12px;
+  }
+
+  /* ── Transaction Panels ──────────────── */
+  .tx-panels {
+    grid-column: 1 / 3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 2px solid var(--border);
+    height: 46%;
+  }
+
+  .tx-panel-t1 { border-right: 1px solid var(--border); border-left: 2px solid var(--t1); }
+  .tx-panel-t2 { border-left: 2px solid var(--t2); }
+
+  /* ── Transaction Controls ────────────── */
+  .tx-controls {
+    padding: 10px 12px;
+    background: var(--surface3);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tx-status-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .tx-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text3); flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
+  .status-dot.waiting { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); animation: pulse 0.8s infinite; }
+  .status-dot.deadlock { background: var(--red); box-shadow: 0 0 8px var(--red); animation: blink 0.5s infinite; }
+  .status-dot.committed { background: var(--cyan); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .tx-info {
+    font-size: 11px; color: var(--text3);
+    display: flex; gap: 12px;
+  }
+  .tx-info span { display: flex; align-items: center; gap: 4px; }
+
+  .btn-row {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+
+  .btn {
+    border: none; border-radius: 6px;
+    padding: 6px 12px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 5px;
+    white-space: nowrap;
+  }
+  .btn:disabled {
+    opacity: 0.4; cursor: not-allowed; transform: none !important;
+  }
+  .btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.1); }
+
+  .btn-begin { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-lock-t1 { background: rgba(59,130,246,0.15); color: var(--t1); border: 1px solid rgba(59,130,246,0.4); }
+  .btn-lock-t2 { background: rgba(249,115,22,0.15); color: var(--t2); border: 1px solid rgba(249,115,22,0.4); }
+  .btn-commit { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.4); }
+  .btn-rollback { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.4); }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-danger { background: var(--red); color: white; }
+  .btn-success { background: var(--green); color: white; }
+  .btn-deadlock-auto { background: linear-gradient(135deg, var(--t1), var(--t2)); color: white; font-size: 12px; }
+
+  /* ── Seat Picker ──────────────────────── */
+  .seat-selector {
+    display: flex; gap: 6px; align-items: center;
+    padding: 8px 0 4px;
+    flex-wrap: wrap;
+  }
+  .seat-selector label { font-size: 11px; color: var(--text2); }
+  .seat-selector select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px; border-radius: 5px;
+    font-size: 12px; cursor: pointer;
+  }
+
+  /* ── Seat Grid ────────────────────────── */
+  .seat-grid-wrap {
+    padding: 8px 0;
+    flex-shrink: 0;
+  }
+  .screen-label {
+    text-align: center;
+    background: linear-gradient(135deg, #334155, #475569);
+    color: var(--text2); font-size: 10px;
+    padding: 3px; border-radius: 4px;
+    margin-bottom: 8px; letter-spacing: 2px;
+  }
+  .seat-grid {
+    display: grid;
+    gap: 4px;
+    justify-content: center;
+  }
+  .seat-row-g {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .seat-row-label {
+    width: 16px; text-align: center;
+    font-size: 10px; color: var(--text3); font-weight: 700;
+  }
+  .seat {
+    width: 28px; height: 24px;
+    border-radius: 4px 4px 2px 2px;
+    border: 1px solid;
+    cursor: pointer;
+    font-size: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .seat:hover:not(.seat-booked):not(.seat-locked) {
+    transform: scale(1.15);
+    z-index: 10;
+  }
+  .seat-available {
+    background: rgba(30,45,70,0.8); border-color: #374151;
+    color: var(--text3);
+  }
+  .seat-vip.seat-available {
+    background: rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.4);
+    color: var(--purple);
+  }
+  .seat-booked {
+    background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4);
+    color: var(--red); cursor: not-allowed;
+  }
+  .seat-locked-t1 {
+    background: rgba(59,130,246,0.3); border-color: var(--t1);
+    color: white; cursor: pointer;
+    box-shadow: 0 0 8px rgba(59,130,246,0.5);
+  }
+  .seat-locked-t2 {
+    background: rgba(249,115,22,0.3); border-color: var(--t2);
+    color: white; cursor: pointer;
+    box-shadow: 0 0 8px rgba(249,115,22,0.5);
+  }
+  .seat-selected-t1 {
+    background: var(--t1); border-color: var(--t1);
+    color: white; box-shadow: 0 0 10px rgba(59,130,246,0.8);
+  }
+  .seat-selected-t2 {
+    background: var(--t2); border-color: var(--t2);
+    color: white; box-shadow: 0 0 10px rgba(249,115,22,0.8);
+  }
+
+  /* ── Bottom panels ───────────────────── */
+  .bottom-panels {
+    grid-column: 1 / 3;
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    height: 54%;
+  }
+
+  /* ── SQL Console ─────────────────────── */
+  .sql-console {
+    border-right: 1px solid var(--border);
+    border-left: 2px solid var(--purple);
+  }
+
+  .sql-log {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11px;
+    padding: 8px 4px;
+  }
+
+  .log-entry {
+    padding: 5px 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    border-left: 3px solid transparent;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+
+  .log-entry.success { border-left-color: var(--green); background: rgba(16,185,129,0.06); }
+  .log-entry.error { border-left-color: var(--red); background: rgba(239,68,68,0.08); }
+  .log-entry.deadlock { border-left-color: var(--red); background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); }
+  .log-entry.waiting { border-left-color: var(--yellow); background: rgba(245,158,11,0.08); }
+  .log-entry.info { border-left-color: var(--cyan); background: rgba(6,182,212,0.06); }
+
+  .log-meta {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 3px;
+  }
+  .log-session {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    font-weight: 700;
+  }
+  .session-T1 { background: rgba(59,130,246,0.2); color: var(--t1); }
+  .session-T2 { background: rgba(249,115,22,0.2); color: var(--t2); }
+  .session-FIX { background: rgba(16,185,129,0.2); color: var(--green); }
+  .session-other { background: rgba(100,116,139,0.2); color: var(--text2); }
+
+  .log-time { font-size: 10px; color: var(--text3); }
+  .log-status-badge {
+    font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 700;
+  }
+  .log-sql {
+    color: #93c5fd;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+  .log-sql .keyword { color: #f472b6; }
+  .log-sql .table-name { color: #34d399; }
+  .log-sql .string { color: #fbbf24; }
+  .log-sql .comment { color: #6b7280; font-style: italic; }
+  .log-result {
+    color: var(--text2); font-size: 10px;
+    margin-top: 2px;
+  }
+
+  /* ── Control Panel ───────────────────── */
+  .control-panel {
+    border-left: 2px solid var(--green);
+  }
+
+  .tab-row {
+    display: flex; border-bottom: 1px solid var(--border);
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+  .tab {
+    padding: 8px 12px; font-size: 12px; font-weight: 600;
+    cursor: pointer; color: var(--text3); border-bottom: 2px solid transparent;
+    transition: all 0.2s; margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Deadlock Scenario Cards ────────── */
+  .scenario-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .scenario-card:hover { border-color: var(--accent); background: var(--surface3); }
+  .scenario-card.active { border-color: var(--red); background: rgba(239,68,68,0.05); }
+
+  .scenario-title {
+    font-size: 13px; font-weight: 700; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .scenario-desc { font-size: 11px; color: var(--text2); line-height: 1.5; }
+
+  .scenario-steps {
+    margin-top: 8px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .step-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 11px; padding: 4px 6px; border-radius: 4px;
+    background: var(--surface3);
+  }
+  .step-tx { font-weight: 700; min-width: 32px; }
+  .step-tx.t1 { color: var(--t1); }
+  .step-tx.t2 { color: var(--t2); }
+
+  /* ── Deadlock Visualizer ─────────────── */
+  .deadlock-viz {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px; gap: 8px;
+  }
+  .viz-nodes {
+    display: flex; justify-content: space-around;
+    width: 100%; position: relative;
+  }
+  .viz-node {
+    width: 70px; height: 70px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    border: 3px solid;
+    position: relative; z-index: 2;
+    transition: all 0.3s;
+  }
+  .viz-node-t1 {
+    border-color: var(--t1);
+    background: rgba(59,130,246,0.15);
+    color: var(--t1);
+  }
+  .viz-node-t2 {
+    border-color: var(--t2);
+    background: rgba(249,115,22,0.15);
+    color: var(--t2);
+  }
+  .viz-node.deadlocked {
+    animation: shake 0.5s infinite;
+    border-color: var(--red) !important;
+    background: rgba(239,68,68,0.2) !important;
+    color: var(--red) !important;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .viz-node.committed {
+    border-color: var(--green) !important;
+    background: rgba(16,185,129,0.15) !important;
+    color: var(--green) !important;
+  }
+
+  .viz-arrows {
+    width: 100%; text-align: center;
+    font-size: 11px; color: var(--text2);
+    position: relative; height: 30px;
+  }
+  .viz-arrow {
+    position: absolute; font-size: 20px;
+    transition: all 0.3s;
+  }
+
+  /* ── Fix Panel ────────────────────────── */
+  .fix-options {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .fix-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+  }
+  .fix-card-title {
+    font-size: 13px; font-weight: 700; margin-bottom: 6px;
+    color: var(--green); display: flex; align-items: center; gap: 6px;
+  }
+  .fix-card-desc {
+    font-size: 11px; color: var(--text2); line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  .fix-code {
+    background: var(--bg); padding: 6px 8px;
+    border-radius: 4px; font-size: 10px;
+    font-family: monospace; color: #93c5fd;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--green);
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  /* ── Locks Monitor ───────────────────── */
+  .locks-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 11px;
+  }
+  .locks-table th, .locks-table td {
+    padding: 5px 8px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .locks-table th {
+    color: var(--text3); font-size: 10px;
+    text-transform: uppercase; background: var(--surface2);
+  }
+  .lock-state-active { color: var(--green); }
+  .lock-state-idle { color: var(--text3); }
+  .lock-state-waiting { color: var(--yellow); }
+  .lock-state-deadlock { color: var(--red); }
+
+  /* ── Alerts ──────────────────────────── */
+  .alert {
+    position: fixed; top: 70px; right: 16px; z-index: 1000;
+    max-width: 380px; padding: 12px 16px;
+    border-radius: 8px; font-size: 13px;
+    display: flex; align-items: flex-start; gap: 10px;
+    animation: slideIn 0.3s ease;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+  .alert-deadlock {
+    background: #1a0a0a; border: 2px solid var(--red);
+    color: var(--red);
+  }
+  .alert-success {
+    background: #0a1a10; border: 2px solid var(--green);
+    color: var(--green);
+  }
+  .alert-info {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .alert-close { cursor: pointer; margin-left: auto; opacity: 0.7; }
+  .alert-close:hover { opacity: 1; }
+
+  /* ── Deadlock Banner ─────────────────── */
+  .deadlock-banner {
+    display: none;
+    background: linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.1));
+    border: 1px solid rgba(239,68,68,0.5);
+    border-radius: 8px; padding: 12px;
+    margin: 8px;
+    text-align: center;
+    animation: pulseBorder 1s infinite;
+  }
+  @keyframes pulseBorder {
+    0%, 100% { border-color: rgba(239,68,68,0.5); }
+    50% { border-color: rgba(239,68,68,1); box-shadow: 0 0 20px rgba(239,68,68,0.3); }
+  }
+  .deadlock-banner.show { display: block; }
+
+  /* ── Legend ──────────────────────────── */
+  .legend {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    padding: 6px 12px; border-top: 1px solid var(--border);
+    background: var(--surface2); flex-shrink: 0;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--text2);
+  }
+  .legend-dot {
+    width: 12px; height: 10px; border-radius: 2px;
+  }
+
+  /* ── Scrollbar ───────────────────────── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Input ───────────────────────────── */
+  input[type=text] {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 10px; border-radius: 5px;
+    font-size: 12px; width: 100%;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  .form-row {
+    display: flex; gap: 6px; margin-bottom: 6px;
+    align-items: center;
+  }
+  .form-row label { font-size: 11px; color: var(--text2); min-width: 60px; }
+
+  .lock-indicator {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  }
+
+  .seat-count-badge {
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 10px;
+    font-size: 12px;
+    display: flex; gap: 12px;
+  }
+  .seat-count-badge span { color: var(--text2); font-size: 11px; }
+  .seat-count-badge b { color: var(--text); }
+
+  .scenario-auto-btn {
+    width: 100%; padding: 10px;
+    background: linear-gradient(135deg, rgba(239,68,68,0.2), rgba(59,130,246,0.2));
+    border: 1px solid rgba(239,68,68,0.4);
+    border-radius: 8px; color: var(--red); font-weight: 700;
+    cursor: pointer; font-size: 13px;
+    transition: all 0.2s; margin-top: 8px;
+  }
+  .scenario-auto-btn:hover {
+    background: linear-gradient(135deg, rgba(239,68,68,0.3), rgba(59,130,246,0.3));
+    transform: scale(1.01);
+  }
+  .scenario-auto-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <span class="logo-icon">🎬</span>
+    <div>
+      <div>Cinema Deadlock Demo</div>
+      <div class="logo-sub">DBMS Course — Deadlock Detection & Recovery</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="ws-badge">
+      <div class="ws-dot" id="wsDot"></div>
+      <span id="wsStatus">Connecting...</span>
+    </div>
+    <button class="btn-reset" onclick="resetDemo()">⟳ Reset Demo</button>
+  </div>
+</header>
+
+<div class="main-layout">
+
+  <!-- ══ TOP: Transaction Panels ════════════════════════════════════════ -->
+  <div class="tx-panels">
+
+    <!-- Transaction T1 -->
+    <div class="panel tx-panel-t1">
+      <div class="panel-header">
+        <span class="panel-title">Transaction T1</span>
+        <span class="panel-badge badge-t1">🔵 CLIENT A</span>
+        <span style="margin-left:auto; font-size:11px; color:var(--text3)">Cửa sổ trình duyệt 1</span>
+      </div>
+
+      <div class="tx-controls">
+        <div class="tx-status-bar">
+          <div class="tx-status">
+            <div class="status-dot" id="dot-T1"></div>
+            <span id="status-T1" style="font-size:12px">Chưa bắt đầu</span>
+          </div>
+          <div class="tx-info">
+            <span>🔒 Đang giữ: <b id="locked-T1">—</b></span>
+            <span>📋 Bước: <b id="step-T1">0</b></span>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-begin" onclick="txBegin('T1')" id="btn-begin-T1">▶ BEGIN</button>
+          <button class="btn btn-commit" onclick="txCommit('T1')" id="btn-commit-T1" disabled>✓ COMMIT</button>
+          <button class="btn btn-rollback" onclick="txRollback('T1')" id="btn-rollback-T1" disabled>✕ ROLLBACK</button>
+        </div>
+
+        <div class="seat-selector">
+          <label>Chọn ghế:</label>
+          <select id="seat-select-T1" style="min-width:90px">
+            <option value="">-- Chọn --</option>
+          </select>
+          <button class="btn btn-lock-t1" onclick="txLockSeat('T1')" id="btn-lock-T1" disabled>
+            🔒 SELECT FOR UPDATE
+          </button>
+        </div>
+
+        <div id="lock-indicator-T1" style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;"></div>
+      </div>
+
+      <div class="panel-body">
+        <div id="deadlock-banner-T1" class="deadlock-banner">
+          <div style="font-size:20px">💀</div>
+          <div style="font-size:14px; font-weight:700; color:var(--red)">DEADLOCK DETECTED!</div>
+          <div style="font-size:11px; color:var(--text2); margin-top:4px">
+            PostgreSQL đã tự động rollback giao dịch T1<br>
+            SQLSTATE: 40P01 — deadlock detected
+          </div>
+        </div>
+        <div id="seatgrid-T1" class="seat-grid-wrap">
+          <div class="screen-label">── SCREEN ──</div>
+          <div id="grid-T1" class="seat-grid"></div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--surface3); border:1px solid #374151"></div>Available</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(239,68,68,0.3)"></div>Booked</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(59,130,246,0.4)"></div>Locked T1</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(249,115,22,0.4)"></div>Locked T2</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(168,85,247,0.3)"></div>VIP</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transaction T2 -->
+    <div class="panel tx-panel-t2">
+      <div class="panel-header">
+        <span class="panel-title">Transaction T2</span>
+        <span class="panel-badge badge-t2">🟠 CLIENT B</span>
+        <span style="margin-left:auto; font-size:11px; color:var(--text3)">Cửa sổ trình duyệt 2</span>
+      </div>
+
+      <div class="tx-controls">
+        <div class="tx-status-bar">
+          <div class="tx-status">
+            <div class="status-dot" id="dot-T2"></div>
+            <span id="status-T2" style="font-size:12px">Chưa bắt đầu</span>
+          </div>
+          <div class="tx-info">
+            <span>🔒 Đang giữ: <b id="locked-T2">—</b></span>
+            <span>📋 Bước: <b id="step-T2">0</b></span>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-begin" onclick="txBegin('T2')" id="btn-begin-T2">▶ BEGIN</button>
+          <button class="btn btn-commit" onclick="txCommit('T2')" id="btn-commit-T2" disabled>✓ COMMIT</button>
+          <button class="btn btn-rollback" onclick="txRollback('T2')" id="btn-rollback-T2" disabled>✕ ROLLBACK</button>
+        </div>
+
+        <div class="seat-selector">
+          <label>Chọn ghế:</label>
+          <select id="seat-select-T2" style="min-width:90px">
+            <option value="">-- Chọn --</option>
+          </select>
+          <button class="btn btn-lock-t2" onclick="txLockSeat('T2')" id="btn-lock-T2" disabled>
+            🔒 SELECT FOR UPDATE
+          </button>
+        </div>
+
+        <div id="lock-indicator-T2" style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;"></div>
+      </div>
+
+      <div class="panel-body">
+        <div id="deadlock-banner-T2" class="deadlock-banner">
+          <div style="font-size:20px">💀</div>
+          <div style="font-size:14px; font-weight:700; color:var(--red)">DEADLOCK DETECTED!</div>
+          <div style="font-size:11px; color:var(--text2); margin-top:4px">
+            PostgreSQL đã tự động rollback giao dịch T2<br>
+            SQLSTATE: 40P01 — deadlock detected
+          </div>
+        </div>
+        <div id="seatgrid-T2" class="seat-grid-wrap">
+          <div class="screen-label">── SCREEN ──</div>
+          <div id="grid-T2" class="seat-grid"></div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--surface3); border:1px solid #374151"></div>Available</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(239,68,68,0.3)"></div>Booked</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(59,130,246,0.4)"></div>Locked T1</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(249,115,22,0.4)"></div>Locked T2</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tx-panels -->
+
+  <!-- ══ BOTTOM: SQL Console + Control Panel ════════════════════════════ -->
+  <div class="bottom-panels">
+
+    <!-- SQL Console -->
+    <div class="panel sql-console">
+      <div class="panel-header">
+        <span class="panel-title">📟 SQL Console</span>
+        <span class="panel-badge badge-purple">REAL-TIME DBMS LOG</span>
+        <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px" onclick="clearLogs()">Clear</button>
+      </div>
+      <div class="panel-body" id="sqlConsole">
+        <div class="sql-log" id="sqlLogContainer">
+          <div class="log-entry info">
+            <div class="log-meta">
+              <span class="log-session session-other">SYSTEM</span>
+              <span class="log-time" id="initTime"></span>
+            </div>
+            <div class="log-sql">-- 🎬 Cinema Deadlock Demo - DBMS Course
+-- Kết nối WebSocket để nhận SQL log real-time...
+-- Nhấn BEGIN để bắt đầu giao dịch</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="panel control-panel">
+      <div class="panel-header">
+        <span class="panel-title">⚙️ Control Panel</span>
+        <span class="panel-badge badge-green">DBMS DEMO</span>
+      </div>
+
+      <div class="tab-row">
+        <div class="tab active" onclick="switchTab('scenario')">🎭 Deadlock Scenario</div>
+        <div class="tab" onclick="switchTab('fix')">🔧 Fix Deadlock</div>
+        <div class="tab" onclick="switchTab('monitor')">📊 Monitor</div>
+        <div class="tab" onclick="switchTab('bookings')">🎟 Bookings</div>
+      </div>
+
+      <!-- Tab: Scenario -->
+      <div class="tab-content active panel-body" id="tab-scenario">
+
+        <div style="margin-bottom:8px">
+          <div style="font-size:11px; color:var(--text2); line-height:1.6; padding:8px; background:var(--surface2); border-radius:6px; border-left:3px solid var(--red)">
+            <b style="color:var(--red)">🔴 DEADLOCK MECHANISM:</b><br>
+            T1 khóa Ghế A → cần Ghế B<br>
+            T2 khóa Ghế B → cần Ghế A<br>
+            → Vòng tròn chờ đợi = DEADLOCK!
+          </div>
+        </div>
+
+        <!-- Deadlock Visualizer -->
+        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px;">
+          <div style="font-size:11px; color:var(--text3); margin-bottom:8px; text-align:center">WAIT-FOR GRAPH</div>
+          <div class="deadlock-viz">
+            <div class="viz-nodes">
+              <div class="viz-node viz-node-t1" id="viz-T1">
+                <span>T1</span>
+                <span style="font-size:9px" id="viz-T1-seat">—</span>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px">
+                <div id="arrow-t1-t2" style="font-size:18px; color:var(--text3); opacity:0.3">⇄</div>
+                <div style="font-size:9px; color:var(--text3)" id="cycle-label">No cycle</div>
+              </div>
+              <div class="viz-node viz-node-t2" id="viz-T2">
+                <span>T2</span>
+                <span style="font-size:9px" id="viz-T2-seat">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Auto deadlock button -->
+        <button class="scenario-auto-btn" onclick="runAutoDeadlock()" id="btn-auto-deadlock">
+          ⚡ AUTO DEADLOCK DEMO (T1 ↔ T2 song song)
+        </button>
+
+        <div style="font-size:10px; color:var(--text3); text-align:center; margin:4px 0 8px">
+          Tự động chạy 2 giao dịch song song tạo deadlock
+        </div>
+
+        <div style="font-size:11px; color:var(--text2); margin-bottom:6px; font-weight:600">📋 Manual Steps:</div>
+        <div class="scenario-steps">
+          <div class="step-item">
+            <span class="step-tx t1">T1:</span>
+            <span>BEGIN → SELECT FOR UPDATE Ghế A4 → SELECT FOR UPDATE Ghế A5</span>
+          </div>
+          <div class="step-item">
+            <span class="step-tx t2">T2:</span>
+            <span>BEGIN → SELECT FOR UPDATE Ghế A5 → SELECT FOR UPDATE Ghế A4</span>
+          </div>
+          <div class="step-item" style="border-left:2px solid var(--red)">
+            <span style="color:var(--red)">💀</span>
+            <span>PostgreSQL phát hiện cycle → rollback 1 giao dịch (victim)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Fix -->
+      <div class="tab-content panel-body" id="tab-fix">
+        <div class="fix-options">
+
+          <div class="fix-card">
+            <div class="fix-card-title">✅ Phương pháp 1: Ordered Locking</div>
+            <div class="fix-card-desc">
+              Luôn đặt khóa theo thứ tự <b>tăng dần của seat_id</b>. 
+              T1 và T2 đều khóa seat nhỏ trước → không tạo vòng tròn chờ → không deadlock.
+            </div>
+            <div class="fix-code">-- Sắp xếp seat IDs trước khi khóa
+seat_ids = sorted([seat_id1, seat_id2])  -- [3, 7]
+
+-- T1 và T2 đều làm theo thứ tự:
+SELECT * FROM seats WHERE id = 3 FOR UPDATE;
+SELECT * FROM seats WHERE id = 7 FOR UPDATE;</div>
+            <div class="form-row">
+              <label>Ghế 1:</label>
+              <select id="fix-seat1" style="background:var(--surface); border:1px solid var(--border); color:var(--text); padding:4px 8px; border-radius:5px; font-size:12px; flex:1"></select>
+            </div>
+            <div class="form-row">
+              <label>Ghế 2:</label>
+              <select id="fix-seat2" style="background:var(--surface); border:1px solid var(--border); color:var(--text); padding:4px 8px; border-radius:5px; font-size:12px; flex:1"></select>
+            </div>
+            <div class="form-row">
+              <label>Khách:</label>
+              <input type="text" id="fix-customer" value="Nguyễn Văn A" style="flex:1">
+            </div>
+            <button class="btn btn-success" style="width:100%; margin-top:6px" onclick="runFix('ordered')">
+              🔒 Đặt vé với Ordered Locking
+            </button>
+          </div>
+
+          <div class="fix-card">
+            <div class="fix-card-title">⏰ Phương pháp 2: Lock Timeout</div>
+            <div class="fix-card-desc">
+              Cấu hình <code>lock_timeout</code> và <code>deadlock_timeout</code> để PostgreSQL tự phát hiện và rollback victim.
+            </div>
+            <div class="fix-code">-- Cấu hình timeout (giảm thời gian detect)
+SET lock_timeout = '5s';
+SET deadlock_timeout = '1s';
+-- PostgreSQL sẽ tự rollback victim sau 1-2s</div>
+          </div>
+
+          <div class="fix-card">
+            <div class="fix-card-title">🔄 Phương pháp 3: 2PL (Two-Phase Locking)</div>
+            <div class="fix-card-desc">
+              Xin tất cả khóa trước khi thực hiện bất kỳ thao tác nào. Không bao giờ xin thêm khóa sau khi đã giải phóng một khóa.
+            </div>
+            <div class="fix-code">BEGIN;
+-- Phase 1 (Growing): Xin tất cả khóa ngay
+SELECT * FROM seats WHERE id IN (3,7) 
+  FOR UPDATE;  -- Xin cả 2 khóa cùng lúc!
+-- Phase 2 (Shrinking): Thực hiện rồi giải phóng
+UPDATE seats SET status='booked' WHERE id IN (3,7);
+COMMIT;</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Tab: Monitor -->
+      <div class="tab-content panel-body" id="tab-monitor">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+          <span style="font-size:12px; font-weight:600">Active Database Locks</span>
+          <button class="btn btn-begin" style="font-size:11px" onclick="refreshLocks()">↻ Refresh</button>
+        </div>
+
+        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:6px; overflow:hidden; margin-bottom:10px">
+          <table class="locks-table" id="locksTable">
+            <thead>
+              <tr>
+                <th>PID</th>
+                <th>State</th>
+                <th>Wait Event</th>
+                <th>Duration</th>
+                <th>Query</th>
+              </tr>
+            </thead>
+            <tbody id="locksBody">
+              <tr><td colspan="5" style="text-align:center; color:var(--text3); padding:12px">No active locks</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="font-size:12px; font-weight:600; margin-bottom:6px">Deadlock History</div>
+        <div id="deadlockHistory" style="font-size:11px; color:var(--text2)">No deadlocks detected yet.</div>
+
+        <div style="margin-top:10px; padding:8px; background:var(--surface2); border-radius:6px; border-left:3px solid var(--cyan)">
+          <div style="font-size:11px; font-weight:600; color:var(--cyan); margin-bottom:4px">PostgreSQL Detection SQL:</div>
+          <div style="font-family:monospace; font-size:10px; color:#93c5fd">
+            SELECT detect_deadlock_graph();<br>
+            -- Kiểm tra wait-for graph có chu trình không
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Bookings -->
+      <div class="tab-content panel-body" id="tab-bookings">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+          <span style="font-size:12px; font-weight:600">Confirmed Bookings</span>
+          <button class="btn btn-begin" style="font-size:11px" onclick="loadBookings()">↻ Refresh</button>
+        </div>
+        <div id="bookingsContainer" style="font-size:11px; color:var(--text2)">Loading...</div>
+      </div>
+
+    </div><!-- /control-panel -->
+
+  </div><!-- /bottom-panels -->
+</div><!-- /main-layout -->
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const API = '';  // Empty = same origin (proxied by nginx)
+let ws = null;
+let seats = [];
+let showtimeId = 1;
+
+const state = {
+  T1: { active: false, step: 0, lockedSeats: [], status: 'idle' },
+  T2: { active: false, step: 0, lockedSeats: [], status: 'idle' },
+};
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('initTime').textContent = new Date().toLocaleTimeString('vi-VN');
+  connectWS();
+  loadSeats();
+  loadBookings();
+  setInterval(refreshLocks, 3000);
+  setInterval(loadSeats, 2000);
+});
+
+// ============================================================
+// WebSocket
+// ============================================================
+function connectWS() {
+  const wsUrl = `ws://${location.host}/ws`;
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    document.getElementById('wsDot').className = 'ws-dot connected';
+    document.getElementById('wsStatus').textContent = 'Connected';
+    addSysLog('✅ WebSocket connected — SQL logs streaming live');
+  };
+
+  ws.onclose = () => {
+    document.getElementById('wsDot').className = 'ws-dot';
+    document.getElementById('wsStatus').textContent = 'Disconnected';
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => {
+    document.getElementById('wsStatus').textContent = 'Error';
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      handleWSMessage(data);
+    } catch(err) {}
+  };
+}
+
+function handleWSMessage(data) {
+  if (data.type === 'sql_log') {
+    appendLog(data);
+  } else if (data.type === 'seat_locked' || data.type === 'tx_committed' || data.type === 'tx_rolled_back') {
+    loadSeats();
+  } else if (data.type === 'deadlock_detected') {
+    handleDeadlockEvent(data);
+    loadSeats();
+  } else if (data.type === 'reset') {
+    loadSeats();
+    clearLogs();
+    addSysLog('⟳ Demo reset — all seats released');
+  } else if (data.type === 'tx_started') {
+    loadSeats();
+  }
+}
+
+function handleDeadlockEvent(data) {
+  const txId = data.sessionId;
+  if (txId === 'T1' || txId === 'T2') {
+    const banner = document.getElementById(`deadlock-banner-${txId}`);
+    if (banner) banner.classList.add('show');
+
+    const viz = document.getElementById(`viz-${txId}`);
+    if (viz) viz.classList.add('deadlocked');
+
+    updateTxState(txId, 'deadlock');
+    showAlert('💀 DEADLOCK DETECTED!', `Giao dịch ${txId} bị PostgreSQL rollback!\nSQLSTATE: ${data.sqlState}`, 'deadlock');
+    document.getElementById('arrow-t1-t2').style.color = 'var(--red)';
+    document.getElementById('arrow-t1-t2').style.opacity = '1';
+    document.getElementById('arrow-t1-t2').textContent = '⇌';
+    document.getElementById('cycle-label').textContent = '⚠️ CYCLE DETECTED';
+    document.getElementById('cycle-label').style.color = 'var(--red)';
+    loadDeadlockHistory();
+  }
+}
+
+// ============================================================
+// SEATS
+// ============================================================
+async function loadSeats() {
+  try {
+    const res = await fetch(`/api/seats/${showtimeId}`);
+    const data = await res.json();
+    if (!data.success) return;
+    seats = data.data;
+    renderSeatGrid('T1');
+    renderSeatGrid('T2');
+    populateSeatSelects();
+  } catch(e) {}
+}
+
+function renderSeatGrid(txId) {
+  const container = document.getElementById(`grid-${txId}`);
+  if (!container) return;
+
+  const rows = {};
+  seats.forEach(s => {
+    if (!rows[s.seat_row]) rows[s.seat_row] = [];
+    rows[s.seat_row].push(s);
+  });
+
+  container.innerHTML = '';
+  container.style.gridTemplateColumns = '1fr';
+
+  Object.keys(rows).sort().forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'seat-row-g';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'seat-row-label';
+    labelEl.textContent = row;
+    rowEl.appendChild(labelEl);
+
+    rows[row].sort((a,b) => a.seat_number - b.seat_number).forEach(seat => {
+      const seatEl = document.createElement('div');
+      seatEl.dataset.seatId = seat.id;
+      seatEl.dataset.seatLabel = seat.seat_label;
+      seatEl.title = `${seat.seat_label} | ${seat.seat_type} | ${Number(seat.price).toLocaleString('vi-VN')}đ | ${seat.status}`;
+
+      let cls = 'seat ';
+      if (seat.status === 'booked') {
+        cls += 'seat-booked';
+        seatEl.textContent = '✕';
+      } else if (seat.status === 'locked') {
+        const isT1 = seat.locked_by === 'T1';
+        const isT2 = seat.locked_by === 'T2';
+        cls += isT1 ? 'seat-locked-t1' : isT2 ? 'seat-locked-t2' : 'seat-available';
+        seatEl.textContent = isT1 ? 'T1' : isT2 ? 'T2' : '?';
+      } else {
+        cls += seat.seat_type === 'vip' ? 'seat-available seat-vip' : 'seat-available';
+        seatEl.textContent = seat.seat_number;
+      }
+
+      // Highlight if selected
+      const txState = state[txId];
+      if (txState.lockedSeats.includes(seat.id)) {
+        cls += txId === 'T1' ? ' seat-selected-t1' : ' seat-selected-t2';
+      }
+
+      seatEl.className = cls;
+      seatEl.onclick = () => {
+        if (seat.status === 'available') {
+          document.getElementById(`seat-select-${txId}`).value = seat.id;
+        }
+      };
+      rowEl.appendChild(seatEl);
+    });
+
+    container.appendChild(rowEl);
+  });
+}
+
+function populateSeatSelects() {
+  ['T1','T2'].forEach(txId => {
+    const sel = document.getElementById(`seat-select-${txId}`);
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- Chọn ghế --</option>';
+    seats.filter(s => s.status === 'available').forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.seat_label} (${s.seat_type} - ${Number(s.price).toLocaleString('vi-VN')}đ)`;
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  });
+
+  // Fix selects
+  ['fix-seat1', 'fix-seat2'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- Chọn --</option>';
+    seats.filter(s => s.status === 'available').forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.seat_label} (${s.seat_type})`;
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  });
+}
+
+// ============================================================
+// TRANSACTION CONTROLS
+// ============================================================
+async function txBegin(txId) {
+  try {
+    const res = await fetch('/api/tx/begin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: txId, customerName: `Customer ${txId}` })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      state[txId] = { active: true, step: 0, lockedSeats: [], status: 'active' };
+
+      // Reset UI
+      document.getElementById(`deadlock-banner-${txId}`).classList.remove('show');
+      const viz = document.getElementById(`viz-${txId}`);
+      viz.classList.remove('deadlocked', 'committed');
+      document.getElementById(`viz-${txId}-seat`).textContent = '—';
+      document.getElementById('arrow-t1-t2').textContent = '⇄';
+      document.getElementById('arrow-t1-t2').style.color = 'var(--text3)';
+      document.getElementById('arrow-t1-t2').style.opacity = '0.3';
+      document.getElementById('cycle-label').textContent = 'No cycle';
+      document.getElementById('cycle-label').style.color = 'var(--text3)';
+
+      updateTxState(txId, 'active');
+      updateLockIndicators(txId);
+    } else {
+      showAlert('Error', data.message, 'error');
+    }
+  } catch(e) {
+    showAlert('Error', e.message, 'error');
+  }
+}
+
+async function txLockSeat(txId) {
+  const seatId = document.getElementById(`seat-select-${txId}`).value;
+  if (!seatId) { showAlert('⚠️', 'Chọn ghế trước!', 'info'); return; }
+
+  if (!state[txId].active) { showAlert('⚠️', 'Nhấn BEGIN trước!', 'info'); return; }
+
+  updateTxState(txId, 'waiting');
+
+  try {
+    const res = await fetch('/api/tx/lock-seat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: txId, seatId: parseInt(seatId) })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      state[txId].lockedSeats.push(parseInt(seatId));
+      state[txId].step++;
+      updateTxState(txId, 'active');
+      updateLockIndicators(txId);
+
+      document.getElementById(`viz-${txId}-seat`).textContent = `🔒${data.seat.seat_label}`;
+
+    } else if (data.isDeadlock) {
+      state[txId] = { active: false, step: 0, lockedSeats: [], status: 'deadlock' };
+      updateTxState(txId, 'deadlock');
+      updateLockIndicators(txId);
+    } else {
+      updateTxState(txId, state[txId].lockedSeats.length > 0 ? 'active' : 'idle');
+    }
+
+    await loadSeats();
+  } catch(e) {
+    updateTxState(txId, 'idle');
+    showAlert('Error', e.message, 'error');
+  }
+}
+
+async function txCommit(txId) {
+  if (!state[txId].active && state[txId].lockedSeats.length === 0) return;
+
+  try {
+    const res = await fetch('/api/tx/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: txId,
+        customerName: `Customer ${txId}`,
+        customerPhone: '0900000000'
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      state[txId] = { active: false, step: 0, lockedSeats: [], status: 'committed' };
+      updateTxState(txId, 'committed');
+      updateLockIndicators(txId);
+
+      const viz = document.getElementById(`viz-${txId}`);
+      viz.classList.remove('deadlocked');
+      viz.classList.add('committed');
+
+      showAlert('✅ COMMIT Thành Công!', `${txId} đã đặt ${data.seatsBooked} ghế. Booking IDs: ${data.bookingIds.join(', ')}`, 'success');
+      loadBookings();
+    }
+    await loadSeats();
+  } catch(e) {
+    showAlert('Error', e.message, 'error');
+  }
+}
+
+async function txRollback(txId, reason) {
+  try {
+    await fetch('/api/tx/rollback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: txId, reason: reason || 'Manual rollback' })
+    });
+
+    state[txId] = { active: false, step: 0, lockedSeats: [], status: 'idle' };
+    updateTxState(txId, 'idle');
+    updateLockIndicators(txId);
+    document.getElementById(`deadlock-banner-${txId}`).classList.remove('show');
+    const viz = document.getElementById(`viz-${txId}`);
+    viz.classList.remove('deadlocked', 'committed');
+
+    await loadSeats();
+  } catch(e) {}
+}
+
+function updateTxState(txId, status) {
+  state[txId].status = status;
+
+  const dot = document.getElementById(`dot-${txId}`);
+  const statusEl = document.getElementById(`status-${txId}`);
+  const stepEl = document.getElementById(`step-${txId}`);
+
+  dot.className = 'status-dot';
+  const isActive = status === 'active' || status === 'waiting';
+  const labels = {
+    idle: 'Chưa bắt đầu',
+    active: '🟢 Đang chạy',
+    waiting: '🟡 Đang chờ khóa...',
+    deadlock: '💀 DEADLOCK - Đã bị Rollback',
+    committed: '✅ Đã COMMIT thành công'
+  };
+
+  if (status !== 'idle') dot.classList.add(status === 'waiting' ? 'waiting' : status === 'deadlock' ? 'deadlock' : status === 'committed' ? 'committed' : 'active');
+  statusEl.textContent = labels[status] || status;
+  stepEl.textContent = state[txId].step;
+
+  // Buttons
+  const began = isActive || status === 'active';
+  document.getElementById(`btn-begin-${txId}`).disabled = isActive;
+  document.getElementById(`btn-commit-${txId}`).disabled = !isActive || state[txId].lockedSeats.length === 0;
+  document.getElementById(`btn-rollback-${txId}`).disabled = !isActive;
+  document.getElementById(`btn-lock-${txId}`).disabled = !isActive;
+}
+
+function updateLockIndicators(txId) {
+  const container = document.getElementById(`lock-indicator-${txId}`);
+  const lockedEl = document.getElementById(`locked-${txId}`);
+  const txState = state[txId];
+
+  if (txState.lockedSeats.length === 0) {
+    container.innerHTML = '';
+    lockedEl.textContent = '—';
+    return;
+  }
+
+  const labels = txState.lockedSeats.map(id => {
+    const seat = seats.find(s => s.id === id);
+    return seat ? seat.seat_label : `#${id}`;
+  });
+  lockedEl.textContent = labels.join(', ');
+
+  container.innerHTML = labels.map(l =>
+    `<span class="lock-indicator" style="background:rgba(${txId==='T1'?'59,130,246':'249,115,22'},0.2); border:1px solid rgba(${txId==='T1'?'59,130,246':'249,115,22'},0.4); color:${txId==='T1'?'var(--t1)':'var(--t2)'}">🔒 ${l}</span>`
+  ).join('');
+}
+
+// ============================================================
+// AUTO DEADLOCK DEMO
+// ============================================================
+async function runAutoDeadlock() {
+  const btn = document.getElementById('btn-auto-deadlock');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running deadlock scenario...';
+
+  addSysLog('═══════════════════════════════════════════');
+  addSysLog('🎬 AUTO DEADLOCK SCENARIO STARTING...');
+  addSysLog('T1: A4 → A5 | T2: A5 → A4 (cross-lock)');
+  addSysLog('═══════════════════════════════════════════');
+
+  // Find seat IDs for A4 and A5
+  await loadSeats();
+  const seatA4 = seats.find(s => s.seat_row === 'A' && s.seat_number === 4);
+  const seatA5 = seats.find(s => s.seat_row === 'A' && s.seat_number === 5);
+
+  if (!seatA4 || !seatA5) {
+    showAlert('⚠️', 'Ghế A4 hoặc A5 không available. Reset demo rồi thử lại!', 'info');
+    btn.disabled = false;
+    btn.textContent = '⚡ AUTO DEADLOCK DEMO (T1 ↔ T2 song song)';
+    return;
+  }
+
+  // BEGIN both transactions
+  await txBegin('T1');
+  await new Promise(r => setTimeout(r, 200));
+  await txBegin('T2');
+  await new Promise(r => setTimeout(r, 200));
+
+  addSysLog('--- T1 locks A4, T2 locks A5 (parallel) ---');
+
+  // T1 locks A4, T2 locks A5 - these should both succeed
+  const lock1Promise = lockSeatDirect('T1', seatA4.id);
+  await new Promise(r => setTimeout(r, 300));
+  const lock2Promise = lockSeatDirect('T2', seatA5.id);
+
+  await Promise.all([lock1Promise, lock2Promise]);
+  await new Promise(r => setTimeout(r, 500));
+
+  addSysLog('--- T1 tries A5 (held by T2), T2 tries A4 (held by T1) → DEADLOCK! ---');
+
+  // Now T1 tries A5 (held by T2) and T2 tries A4 (held by T1) SIMULTANEOUSLY
+  // This creates the deadlock!
+  const deadlock1 = lockSeatDirect('T1', seatA5.id);
+  await new Promise(r => setTimeout(r, 100)); // small delay
+  const deadlock2 = lockSeatDirect('T2', seatA4.id);
+
+  await Promise.allSettled([deadlock1, deadlock2]);
+
+  btn.disabled = false;
+  btn.textContent = '⚡ AUTO DEADLOCK DEMO (T1 ↔ T2 song song)';
+  await loadSeats();
+}
+
+async function lockSeatDirect(txId, seatId) {
+  try {
+    const res = await fetch('/api/tx/lock-seat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: txId, seatId: seatId })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      state[txId].lockedSeats.push(seatId);
+      state[txId].step++;
+      updateTxState(txId, 'active');
+      updateLockIndicators(txId);
+      document.getElementById(`seat-select-${txId}`).value = '';
+    } else if (data.isDeadlock) {
+      state[txId] = { active: false, step: 0, lockedSeats: [], status: 'deadlock' };
+      updateTxState(txId, 'deadlock');
+      updateLockIndicators(txId);
+    }
+    return data;
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ============================================================
+// FIX DEADLOCK
+// ============================================================
+async function runFix(method) {
+  const seat1 = document.getElementById('fix-seat1').value;
+  const seat2 = document.getElementById('fix-seat2').value;
+  const customer = document.getElementById('fix-customer').value;
+
+  if (!seat1 || !seat2) { showAlert('⚠️', 'Chọn 2 ghế để đặt!', 'info'); return; }
+  if (seat1 === seat2) { showAlert('⚠️', 'Chọn 2 ghế khác nhau!', 'info'); return; }
+
+  try {
+    addSysLog('═══════════════════════════════════════════');
+    addSysLog(`✅ FIX: ${method.toUpperCase()} - Ordered Locking`);
+    addSysLog('═══════════════════════════════════════════');
+
+    const res = await fetch('/api/tx/fix-book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seatIds: [parseInt(seat1), parseInt(seat2)],
+        customerName: customer,
+        customerPhone: '0900000000',
+        method
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAlert('✅ Đặt Vé Thành Công!',
+        `Phương pháp: ${data.method}\nBooking IDs: ${data.bookingIds.join(', ')}\nKhông có deadlock xảy ra!`, 'success');
+      await loadSeats();
+      await loadBookings();
+    } else {
+      showAlert('❌ Lỗi', data.message, 'error');
+    }
+  } catch(e) {
+    showAlert('❌ Error', e.message, 'error');
+  }
+}
+
+// ============================================================
+// MONITOR
+// ============================================================
+async function refreshLocks() {
+  try {
+    const res = await fetch('/api/locks');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const tbody = document.getElementById('locksBody');
+    if (!data.data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text3); padding:10px">No active locks</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.data.map(row => `
+      <tr>
+        <td>${row.pid}</td>
+        <td class="lock-state-${row.state === 'active' ? (row.wait_event_type === 'Lock' ? 'waiting' : 'active') : 'idle'}">${row.state}</td>
+        <td>${row.wait_event || '—'}</td>
+        <td>${row.wait_seconds || 0}s</td>
+        <td style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${row.query_preview || ''}">${(row.query_preview || '').slice(0,40)}</td>
+      </tr>
+    `).join('');
+  } catch(e) {}
+}
+
+async function loadDeadlockHistory() {
+  try {
+    const res = await fetch('/api/deadlock-logs');
+    const data = await res.json();
+    const container = document.getElementById('deadlockHistory');
+
+    if (!data.data.length) {
+      container.innerHTML = 'No deadlocks detected yet.';
+      return;
+    }
+
+    container.innerHTML = data.data.map(d => `
+      <div style="background:var(--surface2); border:1px solid rgba(239,68,68,0.3); border-radius:6px; padding:8px; margin-bottom:6px;">
+        <div style="color:var(--red); font-weight:700; font-size:12px">💀 DEADLOCK — ${new Date(d.detected_at).toLocaleTimeString('vi-VN')}</div>
+        <div>Victim: <b>${d.victim}</b> | Seat: ${d.seat_involved}</div>
+        <div>SQLSTATE: ${d.sql_state} | Resolution: ${d.resolution}</div>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+// ============================================================
+// BOOKINGS
+// ============================================================
+async function loadBookings() {
+  try {
+    const res = await fetch('/api/bookings');
+    const data = await res.json();
+    const container = document.getElementById('bookingsContainer');
+
+    if (!data.data.length) {
+      container.innerHTML = '<div style="color:var(--text3); padding:12px; text-align:center">Chưa có vé nào được đặt</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table style="width:100%; border-collapse:collapse; font-size:11px">
+        <thead>
+          <tr style="background:var(--surface2)">
+            <th style="padding:5px 8px; text-align:left; color:var(--text3)">ID</th>
+            <th style="padding:5px 8px; text-align:left; color:var(--text3)">Ghế</th>
+            <th style="padding:5px 8px; text-align:left; color:var(--text3)">Khách</th>
+            <th style="padding:5px 8px; text-align:left; color:var(--text3)">TX</th>
+            <th style="padding:5px 8px; text-align:left; color:var(--text3)">Giá</th>
+            <th style="padding:5px 8px; text-align:left; color:var(--text3)">Thời gian</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.data.map(b => `
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:5px 8px; color:var(--cyan)">#${b.id}</td>
+              <td style="padding:5px 8px; font-weight:700; color:var(--green)">${b.seat_label}</td>
+              <td style="padding:5px 8px">${b.customer_name}</td>
+              <td style="padding:5px 8px; font-size:10px; color:var(--text3)">${b.transaction_id}</td>
+              <td style="padding:5px 8px; color:var(--yellow)">${Number(b.total_price).toLocaleString('vi-VN')}đ</td>
+              <td style="padding:5px 8px; color:var(--text3)">${new Date(b.booked_at).toLocaleTimeString('vi-VN')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch(e) {
+    document.getElementById('bookingsContainer').textContent = 'Error loading bookings';
+  }
+}
+
+// ============================================================
+// SQL Console
+// ============================================================
+function appendLog(data) {
+  const container = document.getElementById('sqlLogContainer');
+  const entry = document.createElement('div');
+
+  // Determine session class
+  let sessionClass = 'session-other';
+  if (data.sessionId === 'T1') sessionClass = 'session-T1';
+  else if (data.sessionId === 'T2') sessionClass = 'session-T2';
+  else if (data.sessionId && data.sessionId.startsWith('FIX')) sessionClass = 'session-FIX';
+
+  const statusColors = {
+    success: 'var(--green)',
+    error: 'var(--red)',
+    deadlock: 'var(--red)',
+    waiting: 'var(--yellow)',
+    info: 'var(--cyan)',
+  };
+
+  const statusLabels = {
+    success: '✅ OK',
+    error: '❌ ERR',
+    deadlock: '💀 DEADLOCK',
+    waiting: '⏳ WAIT',
+    info: 'ℹ️ INFO',
+  };
+
+  entry.className = `log-entry ${data.status || 'info'}`;
+  const time = new Date(data.timestamp).toLocaleTimeString('vi-VN', { hour12: false });
+
+  entry.innerHTML = `
+    <div class="log-meta">
+      <span class="log-session ${sessionClass}">${data.sessionId || 'SYS'}</span>
+      <span class="log-time">${time}</span>
+      ${data.durationMs ? `<span style="font-size:10px; color:var(--text3)">${data.durationMs}ms</span>` : ''}
+      <span class="log-status-badge" style="color:${statusColors[data.status] || 'var(--text2)'}">${statusLabels[data.status] || data.status}</span>
+    </div>
+    <div class="log-sql">${syntaxHighlight(data.sql || '')}</div>
+    ${data.result ? `<div class="log-result">→ ${data.result}</div>` : ''}
+  `;
+
+  container.appendChild(entry);
+
+  // Auto scroll
+  const console = document.getElementById('sqlConsole');
+  console.scrollTop = console.scrollHeight;
+
+  // Keep max 200 entries
+  while (container.children.length > 200) {
+    container.removeChild(container.firstChild);
+  }
+}
+
+function syntaxHighlight(sql) {
+  if (!sql) return '';
+  return sql
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\b(SELECT|FROM|WHERE|JOIN|FOR UPDATE|UPDATE|SET|INSERT|INTO|VALUES|COMMIT|ROLLBACK|BEGIN|RETURNING|DELETE|CREATE|TABLE|INDEX|AND|OR|IN|NOT|NULL|IS|AS|ON|NOWAIT|WAIT|LEFT|INNER|OUTER|ORDER BY|GROUP BY|HAVING|LIMIT|OFFSET)\b/g, '<span class="keyword">$1</span>')
+    .replace(/\b(seats|bookings|showtimes|movies|transaction_log|deadlock_log)\b/g, '<span class="table-name">$1</span>')
+    .replace(/'([^']*)'/g, '<span class="string">\'$1\'</span>')
+    .replace(/(--[^\n]*)/g, '<span class="comment">$1</span>');
+}
+
+function addSysLog(msg) {
+  appendLog({ sessionId: 'SYS', sql: msg, status: 'info', timestamp: new Date().toISOString() });
+}
+
+function clearLogs() {
+  document.getElementById('sqlLogContainer').innerHTML = '';
+  addSysLog('-- Console cleared');
+}
+
+// ============================================================
+// RESET
+// ============================================================
+async function resetDemo() {
+  if (!confirm('Reset tất cả dữ liệu demo? Tất cả ghế sẽ được giải phóng.')) return;
+
+  try {
+    const res = await fetch('/api/reset', { method: 'POST' });
+    const data = await res.json();
+
+    // Reset state
+    ['T1','T2'].forEach(txId => {
+      state[txId] = { active: false, step: 0, lockedSeats: [], status: 'idle' };
+      updateTxState(txId, 'idle');
+      updateLockIndicators(txId);
+      document.getElementById(`deadlock-banner-${txId}`).classList.remove('show');
+      const viz = document.getElementById(`viz-${txId}`);
+      viz.classList.remove('deadlocked', 'committed');
+      document.getElementById(`viz-${txId}-seat`).textContent = '—';
+    });
+
+    document.getElementById('arrow-t1-t2').textContent = '⇄';
+    document.getElementById('arrow-t1-t2').style.opacity = '0.3';
+    document.getElementById('cycle-label').textContent = 'No cycle';
+    document.getElementById('cycle-label').style.color = 'var(--text3)';
+
+    showAlert('✅ Reset', data.message, 'success');
+    await loadSeats();
+    await loadBookings();
+    await loadDeadlockHistory();
+  } catch(e) {
+    showAlert('Error', e.message, 'error');
+  }
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+  event.target.classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+
+  if (name === 'monitor') { refreshLocks(); loadDeadlockHistory(); }
+  if (name === 'bookings') loadBookings();
+}
+
+// ============================================================
+// ALERTS
+// ============================================================
+let alertTimeout = null;
+function showAlert(title, msg, type) {
+  const existing = document.querySelector('.alert');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.className = `alert alert-${type}`;
+  el.innerHTML = `
+    <div>
+      <div style="font-weight:700; font-size:14px; margin-bottom:4px">${title}</div>
+      <div style="font-size:12px; white-space:pre-wrap; opacity:0.9">${msg}</div>
+    </div>
+    <span class="alert-close" onclick="this.parentElement.remove()">✕</span>
+  `;
+  document.body.appendChild(el);
+
+  if (alertTimeout) clearTimeout(alertTimeout);
+  const delay = type === 'deadlock' ? 8000 : 5000;
+  alertTimeout = setTimeout(() => el.remove(), delay);
+}
+</script>
+</body>
+</html>
